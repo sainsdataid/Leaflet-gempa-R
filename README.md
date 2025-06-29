@@ -33,7 +33,7 @@ install.packages(c("leaflet", "sf", "httr", "jsonlite", "dplyr"))
 
 ## Preview
 
-![screenshot](images/preview.png) <!-- Optional, replace with actual path -->
+![screenshot](Output.png) 
 
 ## Resources
 
