@@ -1,0 +1,175 @@
+---
+title: "Indonesia Earthquake Data Visualization with Leaflet"
+author:
+  - name: "CAHYA ALKAHFI"
+    url: "https://sainsdata.id"
+date: "`r Sys.Date()`"
+output:
+  - rmdformats::readthedown
+---
+
+Earthquake data is crucial spatial information for disaster analysis, risk mitigation, and public education. One of the open and accessible sources of earthquake data is from the United States Geological Survey (USGS), available in GeoJSON format.
+
+In this tutorial, we'll learn how to display significant earthquake data occurring in Indonesia using an interactive map built in R with the `leaflet` package. We’ll also show how to present earthquake details through popup pins on the event locations.
+
+## Install Required R Packages
+
+Before starting the visualization, make sure the following packages are installed:
+
+-   `sf`: to read and handle spatial data including GeoJSON
+-   `leaflet`: to build web-based interactive maps directly from R
+-   `httr`: to retrieve data from URLs via HTTP
+-   `jsonlite`: to process data in JSON format
+-   `dplyr`: to manipulate and filter data
+
+```{r}
+# Install packages (if not already installed)
+# install.packages("sf")
+# install.packages("leaflet")
+# install.packages("httr")
+# install.packages("jsonlite")
+# install.packages("dplyr")
+```
+
+```{r message=FALSE}
+# Load libraries
+library(sf)
+library(leaflet)
+library(httr)
+library(jsonlite)
+library(dplyr)
+```
+
+## Read Earthquake Data from USGS
+
+USGS provides open earthquake data via APIs accessible in GeoJSON format. The datasets include various time ranges and criteria, such as:
+
+-   `all_day.geojson`: All earthquakes from the past 24 hours
+-   `all_week.geojson`: All earthquakes from the past 7 days
+-   `significant_month.geojson`: Significant quakes from the last 30 days
+-   `4.5_day.geojson`: Earthquakes above magnitude 4.5 in the past day
+
+In this example, we’ll use data from the past 30 days and filter only earthquakes that occurred in **Indonesia**.
+
+```{r}
+url <- "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"
+
+eq_raw <- st_read(url)
+
+eq_id <- eq_raw %>%
+  filter(grepl("Indonesia", place)) %>%
+  mutate(datetime = as.POSIXct(time / 1000, origin = "1970-01-01"))
+```
+
+## Basic Earthquake Map Visualization
+
+We can visualize the earthquake data by placing small red circles at each event location. When clicked, a popup will show the location, magnitude, and time.
+
+```{r}
+leaflet(data = eq_id) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    radius = 8,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.8,
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  setView(lng = 120, lat = -2, zoom = 4)
+```
+
+## Using Custom Icons
+
+To enhance the map’s appearance, we can replace the red circles with custom icons. These icons can be PNG images from the web or local files.
+
+```{r}
+custom_icon <- makeIcon(
+  iconUrl = "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+  iconWidth = 24, iconHeight = 24
+)
+
+leaflet(data = eq_id) %>%
+  addProviderTiles(providers$CartoDB.PositronNoLabels) %>%
+  addMarkers(
+    icon = custom_icon,
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  setView(lng = 120, lat = -2, zoom = 4)
+```
+
+## Different Icons for Different Magnitudes
+
+To distinguish significant earthquakes (magnitude ≥ 4.5) from others, we can use two icons.
+
+```{r}
+icon_red <- makeIcon(
+  iconUrl = "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+  iconWidth = 24, iconHeight = 24
+)
+
+icon_gray <- makeIcon(
+  iconUrl = "https://cdn-icons-png.flaticon.com/512/727/727606.png",
+  iconWidth = 24, iconHeight = 24
+)
+
+eq_id <- eq_id %>%
+  mutate(icon_type = ifelse(mag >= 4.5, "red", "gray"))
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.PositronNoLabels) %>%
+  addMarkers(
+    data = eq_id %>% filter(icon_type == "red"),
+    icon = icon_red,
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  addMarkers(
+    data = eq_id %>% filter(icon_type == "gray"),
+    icon = icon_gray,
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  setView(lng = 120, lat = -2, zoom = 4)
+```
+
+## Add Labels on Hover
+
+To show labels when hovering over points:
+
+```{r}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.PositronNoLabels) %>%
+  addMarkers(
+    data = eq_id %>% filter(icon_type == "red"),
+    icon = icon_red,
+    label = ~paste0(place, " | M: ", mag),
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  addMarkers(
+    data = eq_id %>% filter(icon_type == "gray"),
+    icon = icon_gray,
+    label = ~paste0(place, " | M: ", mag),
+    popup = ~paste0("<b>", place, "</b><br>Magnitude: ", mag, "<br>Time: ", datetime)
+  ) %>%
+  setView(lng = 120, lat = -2, zoom = 4)
+```
+
+## Further Development Ideas
+
+1. Add administrative boundaries using shapefiles from GADM or BIG.
+2. Use time slider to filter by date range.
+3. Use color gradient for depth.
+4. Add summary stats using `htmlwidgets`.
+5. Connect to Shiny app for real-time dashboard.
+
+## Summary
+
+Using R and the `leaflet` package, we can visualize earthquake GeoJSON data from USGS interactively. With further development, this can support public education, disaster monitoring, and research.
+
+## References
+
+- USGS Earthquake Catalog API: <https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php>
+- Leaflet for R: <https://rstudio.github.io/leaflet/>
+- `sf` package docs: <https://r-spatial.github.io/sf/>
+- `dplyr` docs: <https://dplyr.tidyverse.org/>
+- Flaticon icons: <https://www.flaticon.com/>
+
+**Source: [Visualisasi Data Gempa Bumi Indonesia dengan Leaflet](https://sainsdata.id/visualisasi-data/13317/visualisasi-data-gempa-bumi-indonesia-dengan-bahasa-r/)**
